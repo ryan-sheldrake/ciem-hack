@@ -2,6 +2,8 @@ import json
 import requests
 from pprint import pprint as pprint
 
+import typing_extensions
+
 
 def get_bearer_token():
     with open("/Users/ryansheldrake/.lacework-creds", "r") as f:
@@ -49,13 +51,22 @@ def get_raw_cloud_trail(token):
     }
     res_lql = requests.post(ct_url, json=data, headers=headers)
     json_data = json.loads(res_lql.text)
-    pprint(json_data)
+    # pprint(json_data)
     return json_data
+
+
+def get_roles(json_data):
+    for event in json_data['data']:
+        user_id_parms = event['EVENT']['userIdentity']
+        if "arn" in user_id_parms.keys():
+            print(user_id_parms['arn'])
+
 
 
 if __name__ == '__main__':
     token, lw_acc = get_bearer_token()
-    get_raw_cloud_trail(token)
+    json_data = get_raw_cloud_trail(token)
+    get_roles(json_data)
     #TODO get rawcloudtrail data via LQL query
     #TODO scope what data fileds we want/need from raw data
     #TODO parse all principle/roles
