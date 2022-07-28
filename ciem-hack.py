@@ -1,5 +1,6 @@
 import json
 import requests
+import subprocess
 from pprint import pprint as pprint
 
 import typing_extensions
@@ -62,11 +63,16 @@ def get_roles(json_data):
             print(user_id_parms['arn'])
 
 
+def get_all_roles():
+    res_roles = subprocess.run('aws iam list-roles --profile octo', shell=True)
+    pprint(res_roles)
+
 
 if __name__ == '__main__':
-    token, lw_acc = get_bearer_token()
-    json_data = get_raw_cloud_trail(token)
-    get_roles(json_data)
+    # token, lw_acc = get_bearer_token()
+    # json_data = get_raw_cloud_trail(token)
+    # get_roles(json_data)
+    get_all_roles()
     #TODO get rawcloudtrail data via LQL query
     #TODO scope what data fileds we want/need from raw data
     #TODO parse all principle/roles
