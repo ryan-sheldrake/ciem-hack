@@ -1,9 +1,18 @@
 import json
 import requests
+import boto3
 import subprocess
 from pprint import pprint as pprint
 
-import typing_extensions
+
+
+def get_aws_creds():
+    with open("/Users/ryansheldrake/.aws/credentials", "r") as f:
+        content = f.readlines()
+        aws_access_key = (content[10]).strip()
+        aws_secret_key = (content[11]).strip()
+        print(aws_access_key, aws_secret_key)
+        return aws_access_key, aws_secret_key
 
 
 def get_bearer_token():
@@ -63,16 +72,20 @@ def get_roles(json_data):
             print(user_id_parms['arn'])
 
 
-def get_all_roles():
-    res_roles = subprocess.run('aws iam list-roles --profile octo', shell=True)
-    pprint(res_roles)
+def list_all_roles(aws_access_key, secret_key):
+    session = boto3.session.Session(profile_name='octo')
+    iam = session.resource('iam')
+    roles = iam.roles.all()
+    for role in roles:
+        print(role.name)
 
 
 if __name__ == '__main__':
+    secret_key, aws_access_key = get_aws_creds()
     # token, lw_acc = get_bearer_token()
     # json_data = get_raw_cloud_trail(token)
     # get_roles(json_data)
-    get_all_roles()
+    list_all_roles(aws_access_key, secret_key)
     #TODO get rawcloudtrail data via LQL query
     #TODO scope what data fileds we want/need from raw data
     #TODO parse all principle/roles
