@@ -71,6 +71,8 @@ def get_roles(json_data):
         if "arn" in user_id_parms.keys():
             print(user_id_parms['arn'])
 
+        #TODO find the services used by each role assumed
+
 
 def list_all_roles(aws_access_key, secret_key):
     session = boto3.session.Session(profile_name='octo')
@@ -86,8 +88,7 @@ if __name__ == '__main__':
     # json_data = get_raw_cloud_trail(token)
     # get_roles(json_data)
     list_all_roles(aws_access_key, secret_key)
-    #TODO get rawcloudtrail data via LQL query
-    #TODO scope what data fileds we want/need from raw data
-    #TODO parse all principle/roles
+    #TODO scope what data fields we want/need from raw data
     #TODO get all AWS services via CLI/API
+    #TODO create a "diff" on used roles
 
