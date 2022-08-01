@@ -1,94 +1,81 @@
-import json
-import requests
 import boto3
-import subprocess
-from pprint import pprint as pprint
+
+from datetime import datetime, timedelta, timezone
+from pprint import pprint
+
+from laceworksdk import LaceworkClient
+
+lw = LaceworkClient()
+aws = boto3.Session()
 
 
+def get_start_end_times(hour_delta=1):
+    current_time = datetime.now(timezone.utc)
+    start_time = current_time - timedelta(hours=hour_delta)
+    start_time = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_time = current_time.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-def get_aws_creds():
-    with open("/Users/ryansheldrake/.aws/credentials", "r") as f:
-        content = f.readlines()
-        aws_access_key = (content[10]).strip()
-        aws_secret_key = (content[11]).strip()
-        print(aws_access_key, aws_secret_key)
-        return aws_access_key, aws_secret_key
+    return start_time, end_time
 
 
-def get_bearer_token():
-    with open("/Users/ryansheldrake/.lacework-creds", "r") as f:
-        content = f.readlines()
-        lw_acc = (content[8]).strip()
-        access_key = (content[9]).strip()
-        secret = (content[10]).strip()
-        the_url = 'https://' + str(lw_acc) + '.lacework.net/api/v1/access/tokens'
+def get_raw_cloud_trail():
 
-        #print(the_url)
-        data = {
-            "keyId": access_key,
-            "expiryTime": 3600
+    start_time, end_time = get_start_end_times()
+
+    result = lw.queries.execute(
+        query_text="""{
+            source {
+                CloudTrailRawEvents
+            }
+            return distinct {
+                INSERT_ID,
+                INSERT_TIME,
+                EVENT_TIME,
+                EVENT
+            }
+        }""",
+        arguments={
+            "StartTimeRange": start_time,
+            "EndTimeRange": end_time,
         }
-        headers = {
-            "X-LW-UAKS": secret,
-            "Content-Type": "application/json"
-        }
-        res = requests.post(the_url, json=data, headers=headers)
-        json_data = json.loads(res.text)
-        for i in (json_data['data']):
-            token = (i['token'])
-        return token, lw_acc
+    )
+
+    return result
 
 
-def get_raw_cloud_trail(token):
-    ct_url = 'https://' + str(
-        lw_acc) + ".lacework.net/api/v2/Queries/execute"
-    headers = {"Authorization": "Bearer " + str(token).strip()
-               }
-    data = {
-    "query": {
-        "queryText": "ryan_ct_extract {source {CloudTrailRawEvents} return distinct {INSERT_ID,INSERT_TIME,EVENT_TIME,EVENT}}"
-    },
-    "arguments": [
-        {
-            "name": "StartTimeRange",
-            "value": "2022-07-27T10:00:00.000Z"
-        },
-        {
-            "name": "EndTimeRange",
-            "value": "2022-07-27T11:00:00.000Z"
-        }
-    ]
-    }
-    res_lql = requests.post(ct_url, json=data, headers=headers)
-    json_data = json.loads(res_lql.text)
-    # pprint(json_data)
-    return json_data
+def get_services_by_role(json_data):
 
+    roles = {}
 
-def get_roles(json_data):
     for event in json_data['data']:
-        user_id_parms = event['EVENT']['userIdentity']
-        if "arn" in user_id_parms.keys():
-            print(user_id_parms['arn'])
+        identity_arn = event['EVENT'].get('userIdentity', {}).get('arn', None)
+        if identity_arn:
+            if identity_arn not in roles.keys():
+                roles[identity_arn] = set([event['EVENT']['eventSource']])
+            else:
+                roles[identity_arn].add(event['EVENT']['eventSource'])
 
-        #TODO find the services used by each role assumed
+    pprint(roles)
+
+    return roles
 
 
-def list_all_roles(aws_access_key, secret_key):
-    session = boto3.session.Session(profile_name='octo')
-    iam = session.resource('iam')
-    roles = iam.roles.all()
-    for role in roles:
-        print(role.name)
+def list_all_roles():
+    iam = aws.client('iam')
+    paginator = iam.get_paginator('list_roles')
+    responses = paginator.paginate()
+
+    for response in responses:
+        for role in response['Roles']:
+            print(role['RoleName'])
 
 
 if __name__ == '__main__':
-    secret_key, aws_access_key = get_aws_creds()
-    # token, lw_acc = get_bearer_token()
-    # json_data = get_raw_cloud_trail(token)
-    # get_roles(json_data)
-    list_all_roles(aws_access_key, secret_key)
-    #TODO scope what data fields we want/need from raw data
-    #TODO get all AWS services via CLI/API
-    #TODO create a "diff" on used roles
 
+    json_data = get_raw_cloud_trail()
+    get_services_by_role(json_data)
+    list_all_roles()
+
+    # TODO scope what data fields we want/need from raw data
+    # TODO get all AWS services via CLI/API
+    # TODO create a "diff" on used roles
